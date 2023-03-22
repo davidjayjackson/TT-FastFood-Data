@@ -1,0 +1,102 @@
+---
+title: "TidyTuesday Fastfoods"
+author: "David Jackson"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(duckdb)
+library(DBI)
+library(odbc)
+library(janitor)
+```
+```{r}
+## https://db.rstudio.com/databases/microsoft-sql-server/
+con <- DBI::dbConnect(odbc::odbc(), 
+                      Driver = "SQL Server", 
+                      Server = "localhost\\SQLEXPRESS", 
+                      Database = "tidytuesday", 
+                      Trusted_Connection = "True")
+
+```
+
+
+## R Markdown
+
+```{r}
+rm(list= ls())
+fastfood <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2018/2018-09-04/fastfood_calories.csv") %>% select(-...1)
+```
+
+#### Import data into SQL Server 2019
+
+```{r}
+dbWriteTable(con, "fastfood",fastfood ,overwrite=TRUE)
+dbListFields(con,"fastfood")
+```
+
+#### Grab Pivot Longer tables
+
+```{r}
+ff_pivot <- dbGetQuery(con,"SELECT * FROM fastfood_item;")
+ff_pivot$restaurant <- as.factor(ff_pivot$restaurant)
+ff_pivot$nutrient <- as.factor(ff_pivot$nutrient)
+summary(ff_pivot)
+```
+
+#### Bar chart of average nutrient values by nutrient:
+
+```{r}
+
+# Calculate average values by nutrient
+avg_nutrient <- ff_pivot %>%
+  group_by(nutrient) %>%
+  summarize(avg_value = mean(value, na.rm = TRUE))
+
+# Create bar chart
+ggplot(avg_nutrient, aes(x = reorder(nutrient,avg_value), y = avg_value)) +
+  geom_col() +
+  ggtitle("Average Nutrient Values by Nutrient") +
+  coord_flip()
+
+```
+
+#### Stacked bar chart of nutrient values by restaurant:
+
+```{r}
+
+ggplot(ff_pivot, aes(x = restaurant, y = value, fill = nutrient)) +
+  geom_col(position = "stack") +
+  ggtitle("Nutrient Values by Restaurant") +
+  theme(legend.position = "bottom")
+
+```
+
+```{r}
+ggplot(fastfood, aes(x = total_fat, y = protein, color = restaurant)) +
+  geom_point() +
+  ggtitle("Total Fat versus Protein") +
+  xlab("Total Fat") +
+  ylab("Protein")
+
+
+```
+
+```{r}
+ggplot(fastfood,aes(x=total_fat)) + geom_histogram()
+```
+
+```{r}
+ggplot(fastfood,aes(x=total_fat)) + geom_boxplot()
+```
+
+```{r}
+ggplot(fastfood,aes(x=protein)) + geom_histogram()
+```
+
+```{r}
+ggplot(fastfood,aes(x=protein)) + geom_boxplot()
+```
